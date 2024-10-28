@@ -23,8 +23,6 @@ export function activate(context: vscode.ExtensionContext) {
 	/*
 		TODO:
 			- Testing
-			- Add license
-			- Add to github
 	*/
 
 	const compile = vscode.commands.registerCommand('fac.compile', () => {

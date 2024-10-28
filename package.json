@@ -7,6 +7,9 @@
   "engines": {
     "vscode": "^1.94.0"
   },
+  "repository": {
+    "url": "https://github.com/JorianZwerver/fac-compiler"
+  },
   "categories": [
     "Other"
   ],
