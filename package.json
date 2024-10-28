@@ -1,0 +1,108 @@
+{
+  "name": "fac",
+  "displayName": "fpgaAssemblyCompiler",
+  "publisher": "JorianZwerver",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "fac.compile",
+        "title": "Compile .fac",
+        "category": "fac",
+        "icon": "$(play)"
+      },
+      {
+        "command": "fac.version",
+        "title": "Version",
+        "category": "fac"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "when": "resourceExtname == .fac",
+          "command": "fac.compile",
+          "group": "navigation"
+        }
+      ],
+      "touchBar": [
+        {
+          "when": "resourceExtname == .fac",
+          "command": "fac.compile",
+          "group": "a@1"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "fac",
+        "aliases": ["FPGA Assembly", "fac"],
+        "extensions": [".fac"],
+        "configuration": "./language-configuration.json",
+        "icon": { 
+          "light": "./icons/fac.svg",
+          "dark": "./icons/fac.svg"
+        }
+      },
+      {
+        "id": "outputs",
+        "extensions": [
+            ".log"
+        ],
+        "configuration": "./log.configuration.json",
+        "mimetypes": [
+            "log",
+            "text/log",
+            "text/x-log",
+            "text/x-code-output",
+            "x-code-output"
+        ]
+    }
+    ],
+    "grammars": [
+      {
+        "language": "fac",
+        "scopeName": "source.fac",
+        "path": "./syntaxes/fac.tmLanguage.json"
+      },
+      {
+        "language": "outputs",
+        "scopeName": "code.log",
+        "path": "./syntaxes/output.tmLanguage"
+    }
+  ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test",
+    "antlr4ts": "antlr4ts -visitor src/grammar/fac.g4"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.8",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.94.0",
+    "@typescript-eslint/eslint-plugin": "^8.7.0",
+    "@typescript-eslint/parser": "^8.7.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "antlr4ts-cli": "^0.5.0-alpha.4",
+    "eslint": "^9.11.1",
+    "typescript": "^5.6.2"
+  },
+  "dependencies": {
+    "antlr4ts": "^0.5.0-alpha.4"
+  }
+}

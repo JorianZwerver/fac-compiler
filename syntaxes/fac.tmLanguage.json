@@ -1,0 +1,65 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "FPGA Assembly",
+	"patterns": [
+		{
+			"include": "#registers"
+		},
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#labels"
+		},
+		{
+			"include": "#string"
+		},
+		{
+			"include": "#keywords"
+		},
+		{
+			"include": "#reserved"
+		},
+		{
+			"include": "#numbers"
+		}
+	],
+	"repository": {
+		"reserved": {
+			"patterns": [{
+				"name": "entity.name.class",
+				"match": ".data|.decl|.instr"
+			}]
+		},
+		"keywords": {
+			"patterns": [{
+				"name": "keyword",
+				"match": "addi|add|mult|lw|sw|shr|shl|j|beq|bneq|or|and|xor|not|nop|dbg|.define"
+			}]
+		},
+		"labels": {
+			"name": "entity.name.class",
+			"begin": "#",
+			"end": ":|\n"
+		},
+		"string": {
+			"name": "string",
+			"begin": "\"",
+			"end": "\""
+		},
+		"comments" : {
+			"name": "comment.line",
+			"begin": "\\\\",
+			"end": "\n"
+		},
+		"numbers" : {
+			"name": "constant.numeric",
+			"match": "-[0-9]+|[0-9]+"
+		},
+		"registers" : {
+			"name" : "variable.name",
+			"match" : "\\$[a-zA-Z][a-zA-Z0-9]*"
+		}
+	},
+	"scopeName": "source.fac"
+}
