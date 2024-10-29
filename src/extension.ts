@@ -3,6 +3,7 @@ import { ErrorListener } from './compiler/errors/ErrorListener';
 import { Elaboration } from './compiler/Elaboration';
 import { Generation } from './compiler/Generation';
 import { Instructions } from './compiler/instruction/Instructions';
+import { InstructionType } from './compiler/instruction/InstructionType';
 
 // Constants
 const version = "0.0.1";
@@ -82,10 +83,13 @@ export function activate(context: vscode.ExtensionContext) {
 						}
 						
 					} else {
-		
+
 						let file: string = "";
 						for(var instr of resultGenerate) {
 							file += instr.toString() + "\n";
+						}
+						for(let i = 0; i < 1024 - resultGenerate.length; i++) {
+							file += "00000000000000000000000000000000\n";
 						}
 		
 						// Gets the actual filename
@@ -102,11 +106,29 @@ export function activate(context: vscode.ExtensionContext) {
 							0, filename.length - 4
 						);
 		
-						let folder = `${filepath}binaries_${filename}/output_${filename}.txt`;
+
+						if(vscode.workspace.getConfiguration('fac.generateBin')) {
+							let folder = `${filepath}binaries_${filename}/code.bin`;
+							vscode.workspace.fs.writeFile(
+								vscode.Uri.file(folder), 
+								Buffer.from(file)
+							);
+						}
+
+						
+						let hexFile = `${filepath}binaries_${filename}/code.hex`;
 						vscode.workspace.fs.writeFile(
-							vscode.Uri.file(folder), 
-							Buffer.from(file)
+							vscode.Uri.file(hexFile), 
+							Buffer.from(generateHex(resultGenerate))
 						);
+
+						if(vscode.workspace.getConfiguration('fac.generateMd')) {
+							let mdFile = `${filepath}binaries_${filename}/code.md`;
+							vscode.workspace.fs.writeFile(
+								vscode.Uri.file(mdFile), 
+								Buffer.from(generateMd(resultGenerate, filename))
+							);
+						}
 
 						vscode.window.showInformationMessage(
 							"fac: Succesfully compiled file."
@@ -145,7 +167,93 @@ export function activate(context: vscode.ExtensionContext) {
 // This method is called when your extension is deactivated
 export function deactivate() {}
 
-export function consolePrint(channel: vscode.OutputChannel, message: String) {
+function generateHex(instr: Instructions[]): string {
+
+	let nop: Instructions = new Instructions(
+		InstructionType.R,
+		"1110",
+		0,
+		"0000",
+		"0000",
+		"0000"
+	);
+	let addressCounter = 0;
+	let line = "";
+
+	let file = "04000000" + nop.toHex();
+	file = ":" + file + calculateCrc(file) + "\n";
+	addressCounter++;
+
+	for(var i of instr) {
+
+		line += "04";								// Data length (in bytes)
+		line += convertAddressToHex(addressCounter);// Address
+		line += "00"; 								// Record type
+		line += i.toHex();							// Data
+		line += calculateCrc(line);					// CRC
+
+		addressCounter++;
+		file += ":" + line + "\n";
+		line = "";	
+	}
+
+	for(let i = 0; i < 1023 - instr.length; i++) {
+		line += "04";								// Data length (in bytes)
+		line += convertAddressToHex(addressCounter);// Address
+		line += "00"; 								// Record type
+		line += nop.toHex();							// Data
+		line += calculateCrc(line);					// CRC
+
+		addressCounter++;
+		file += ":" + line + "\n";
+		line = "";
+	}
+
+	file += ":00000001FF"; // End of file
+
+	return file;
+}
+
+function calculateCrc(val: string): string {
+
+	let sum = 0;
+
+	for(let i = 0; i < val.length / 2; i++) {
+		sum += Number(
+			"0x" + val.charAt(2*i) + val.charAt(2*i + 1)
+		);
+	}
+
+	sum = (1 + ~(sum % 256)) >>> 0;
+
+	let returnValue = sum.toString(16);
+
+	return returnValue.substring(
+		returnValue.length - 2, returnValue.length
+	).padStart(2, "0");
+}
+
+function convertAddressToHex(addr: number): string {
+	return addr.toString(16).padStart(4, "0");
+}
+
+function generateMd(instr: Instructions[], filename: string): string {
+
+	let mdFile = "";
+
+	mdFile += `# Compilation result of ${filename}\n`;
+	mdFile += `Found ${instr.length} instructions, which can viewed in this table!\n\n`;
+	mdFile += "|Instruction (bin) | Opcode (bin) | Opcode (name) | Rs (bin)| Rs (name) | Rd (bin) | Rd (name) | Rt (bin) | Rt (name) | Imm (bin) | Imm (num) |\n";
+	mdFile += "| ----- | ----- | ---- | --- | ------ | ------ | ------ | ----- | ----- | ----- | ------ |\n";
+
+	for(var instruct of instr) {
+		mdFile += instruct.toMd() + "\n";
+	}
+
+	return mdFile;
+}
+
+function consolePrint(channel: vscode.OutputChannel, message: String) {
 	channel.appendLine(
 		new Date().toLocaleString('en-GB') + " [INFO] " + message
 	);

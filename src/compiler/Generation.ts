@@ -514,7 +514,7 @@ export class Generation extends AbstractParseTreeVisitor<string> implements facV
 		const letters = ctx.LETTERS();
         if(letters !== null) {
 			let labelLoc = this.labelTable.get(letters.text);
-			return `${Number(labelLoc) - this.instructionCounter}`;
+			return `${Number(labelLoc)}`;
         }
 		return "";
     }

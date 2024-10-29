@@ -6,6 +6,7 @@ This is the FPGA Assembly Compiler extension for Visual Studio Code. It allows t
 
 - Compiler for FPGA Assembly. Converts assembly to binary file that can be uploaded to the FPGA processor.
 - Error messaging.
+- Touchbar support.
 
 ## Syntax
 
@@ -51,23 +52,45 @@ All possible instructions can be found in the following table:
 
 | Name  | Example                   | Function      |
 | ----- | ---------                 | ------------- |
-| add   |  add $a1, $t0, $zero      |               |
+| lw   |  lw $d, i($s)      | $t = MEM[$s + i]              |
+| sw | sw $d, i($s) | MEM[$s + i] = $t |
+| mult | mult $d, $s, $t | $d = $s * $t |
+| add | add $d, $s, $t | $d = $s + $t |
+| addi | addi $d, $s, i | $d = $s + i |
+| shr | shr $d, $s, i | $d = $s >> i |
+| shl | shl $d, $s, i | $d = $s << i |
+| j | j label | pc = location[label] |
+| beq | beq $d, $s, label | if($d == $s) go to label |
+| bneq | bneq $d, $s, label | if($d != $s) go to label |
+| or | or $d, $s, $t | $d = $s /\ $t |
+| and | and $d, $s, $t | $d = $s & $t |
+| xor | xor $d, $s, $t | $d = $s ^ $t |
+| not | not $d, $s | $d = ~$s |
+| nop | nop | Does nothing |
+| dbg | dbg | Enters debug mode |
 
 All available registers can be found in the following table:
 
 | Register name | Number    | Function      |
 | ------------- | ------    | --------      |
 |$zero          | 0         | Stores zero.  |
-||||
-
+|$v0 - $v1| 1-2 | Function result. |
+|$a0 - $a3| 3-6 | Arguments. |
+|$t0 - $t11| 7-18| Temporary. |
+|$s0 - $s11 | 19-30 | Saved. |
+|$ra| 31 | Return address. |
 
 ## Extension Settings
 
-For future updates...
+The extension allows the user to toggle which files will be generated during compilation:
+- A binary file with all the instructions in binary.
+- A markdown file, containing information about each instruction.
+
+A HEX file will always be generated (since this is uploaded to the FPGA).
 
 ## Known Issues
 
-TBD
+- Settings do not work yet.
 
 ## Release Notes
 

@@ -29,6 +29,21 @@
         "category": "fac"
       }
     ],
+    "configuration" : {
+      "title" : "FAC",
+      "properties": {
+        "fac.generateBin" : {
+          "type": "boolean",
+          "default": "true",
+          "description": "Generate binary file after compilation."
+        },
+        "fac.generateMd" : {
+          "type": "boolean",
+          "default": "true",
+          "description": "Generate markdown file after compilation. This file contains information about the compilation results."
+        }
+      }
+    },
     "menus": {
       "editor/title": [
         {
