@@ -1,14 +1,37 @@
+// Imports
 import { InstructionType } from "./InstructionType";
 
+/**
+ * Class to specify formatting for instructions.
+ */
 export class Instructions {
-
+    // Instruction type
     type: InstructionType;
+    // Opcode
     op: string;
+    // Destination register
     rd: string = "----";
+    // Source register
     rs: string = "----";
+    // Second source register
     rt: string = "----";
+    // Immediate / Numerical value
     imm: number;
 
+    /**
+     * Instruction constructor. Stores all fields relevant to the instruction.
+     * Expects:
+     * - R type: type, opcode, imm, rd, rs, rt
+     * - I type: type, opcode, imm, rd, rs
+     * - J type: type, opcode, imm
+     * 
+     * @param type Instruction type
+     * @param op Opcode
+     * @param imm Immediate value (Number)
+     * @param rd Destination register
+     * @param rs Source register
+     * @param rt Second source register
+     */
     constructor(
         type: InstructionType, 
         op: string,
@@ -50,12 +73,16 @@ export class Instructions {
         return returnValue;
     }
 
+    /**
+     * Specifies how to format an instruction into a pretty string.
+     * @returns pretty instruction string.
+     */
     toString() {
         if(this.type === InstructionType.R) {
             return this.op
+                + this.rd
                 + this.rs
                 + this.rt
-                + this.rd
                 + this.convertImmToBinary(this.imm, 13);
         }
 
@@ -73,6 +100,10 @@ export class Instructions {
         
     }
 
+    /**
+     * Specifies how to format an instruction into a hexadecimal string.
+     * @returns pretty hexadecimal string.
+     */
     toHex(): string {
         const bin = this.toString();
 
@@ -93,8 +124,13 @@ export class Instructions {
         return returnValue;
     }
 
+     /**
+     * Specifies how to format an instruction into a string for markdown.
+     * @returns pretty markdown string.
+     */
     toMd(): string {
 
+        // Map for mapping all opcodes to instruction names
         let opcode = new Map<string, string>([
             ["0000", "lw"],
             ["0001", "sw"],
@@ -114,6 +150,7 @@ export class Instructions {
             ["1111", "dbg"]
         ]);
 
+        // Map for all mapping all register codes into register names
         let register = new Map<string, string>([
             ["00000", "$zero"],
             ["00001", "$v0"],
@@ -149,6 +186,7 @@ export class Instructions {
             ["11111", "$ra"]
         ]);
 
+        // Returns markdown string
         return "|" + this.toString() +
             "|" + this.op +
             "|" + opcode.get(this.op) +

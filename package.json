@@ -1,9 +1,10 @@
 {
   "name": "fac",
-  "displayName": "fpgaAssemblyCompiler",
+  "displayName": "FPGA Assembly Compiler",
   "publisher": "JorianZwerver",
-  "description": "",
-  "version": "0.0.1",
+  "description": "Compiler for custom ISA architecture of a single cycle processor. This processor runs on a DE1-SoC board and implemented in Quartus.",
+  "icon": "images/circuit.png",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.94.0"
   },
@@ -21,23 +22,40 @@
         "command": "fac.compile",
         "title": "Compile .fac",
         "category": "fac",
-        "icon": "$(play)"
+        "icon": "$(chip)"
       },
       {
         "command": "fac.version",
         "title": "Version",
         "category": "fac"
+      },
+      {
+        "command": "fac.debug",
+        "title": "Debug",
+        "category": "fac"
       }
     ],
-    "configuration" : {
-      "title" : "FAC",
+    "keybindings": [
+      {
+        "command": "fac.compile",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f"
+      },
+      {
+        "command": "fac.version",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f"
+      }
+    ],
+    "configuration": {
+      "title": "FAC",
       "properties": {
-        "fac.generateBin" : {
+        "fac.generateBin": {
           "type": "boolean",
           "default": "true",
           "description": "Generate binary file after compilation."
         },
-        "fac.generateMd" : {
+        "fac.generateMd": {
           "type": "boolean",
           "default": "true",
           "description": "Generate markdown file after compilation. This file contains information about the compilation results."
@@ -63,10 +81,15 @@
     "languages": [
       {
         "id": "fac",
-        "aliases": ["FPGA Assembly", "fac"],
-        "extensions": [".fac"],
+        "aliases": [
+          "FPGA Assembly",
+          "fac"
+        ],
+        "extensions": [
+          ".fac"
+        ],
         "configuration": "./language-configuration.json",
-        "icon": { 
+        "icon": {
           "light": "./icons/fac.svg",
           "dark": "./icons/fac.svg"
         }
@@ -74,17 +97,17 @@
       {
         "id": "outputs",
         "extensions": [
-            ".log"
+          ".log"
         ],
         "configuration": "./log.configuration.json",
         "mimetypes": [
-            "log",
-            "text/log",
-            "text/x-log",
-            "text/x-code-output",
-            "x-code-output"
+          "log",
+          "text/log",
+          "text/x-log",
+          "text/x-code-output",
+          "x-code-output"
         ]
-    }
+      }
     ],
     "grammars": [
       {
@@ -96,8 +119,8 @@
         "language": "outputs",
         "scopeName": "code.log",
         "path": "./syntaxes/output.tmLanguage"
-    }
-  ]
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

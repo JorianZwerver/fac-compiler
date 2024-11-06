@@ -1,3 +1,4 @@
+// Imports
 import * as vscode from 'vscode';
 import { ErrorListener } from './errors/ErrorListener';
 import { CharStreams, CommonTokenStream } from 'antlr4ts';
@@ -14,7 +15,7 @@ import {
     LwContext, 
     SwContext, 
     AddContext, 
-    AddiContext, 
+    AddiContext,  
     OrContext, 
     XorContext, 
     MultContext,
@@ -39,18 +40,30 @@ import { AbstractParseTreeVisitor } from 'antlr4ts/tree/AbstractParseTreeVisitor
 import { TerminalNode } from 'antlr4ts/tree/TerminalNode';
 import exp from 'constants';
 
+/**
+ * Class for elaboration stage of the .fac compiler. Checks if all the syntax of the file 
+ * is correct.
+ * @extends AbstractParseTreeVisitor<any>
+ * @implements facVisitor<any>
+ */
 export class Elaboration extends AbstractParseTreeVisitor<any> implements facVisitor<any> {
 
+    // Output channel for messages
     output:         vscode.OutputChannel;
+    // ErrorHandler
     errorHandler:   ErrorListener;
+    // Table with all definitions
     defineTable!:   Map<string, string>;
-
+    // List with all used labels
     usedLabels!:    string[];
-    pendLabels!:    string[];
-
+    // List with all used references
+    usedReferences!:string[];
+    // Table with all labels and their location. Is given to generation fase.
     labelTable:     Map<string, number> = new Map<string, number>();
+    // Counter
     labelCounter:   number = 0;
 
+    // Constructs elaborator
     constructor(
         output:         vscode.OutputChannel, 
         errorHandler:   ErrorListener
@@ -60,28 +73,34 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
         this.errorHandler = errorHandler;
     }
 
+    /**
+     * Elaborates the input string (checks syntax).
+     * @param content the file to be elaborated, formatted as string 
+     */
     elaborate(content: string) {
 
         // Lexing
         const lexer = new facLexer(
             CharStreams.fromString(content)
         );
+        // Attach ErrorListener
         lexer.addErrorListener(this.errorHandler);
 
         // Parsing
         const parser = new facParser(
             new CommonTokenStream(lexer)
         );
+        // Attach ErrorListener
         parser.addErrorListener(this.errorHandler);
 
+        // Initialize constants, maps and lists
         this.defineTable = new Map<string, string>;
-
         this.labelTable = new Map<string, number>;
         this.labelCounter = 0;
-
         this.usedLabels = [];
-        this.pendLabels = [];
+        this.usedReferences = [];
 
+        // Walk the ParseTree
         const tree = parser.file();
         this.visit(tree);
     }
@@ -90,20 +109,34 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
         return this.labelTable;
     }
 
-    checkLabel(label: string): boolean {
-        if(this.usedLabels.includes(label)) {
-            return false;
-        } else {
-            if(this.pendLabels.includes(label)) {
+    /**
+     * Checks if the label is already used. If not, it
+     * adds it to the list.
+     * @param label name of label (or reference) as string
+     * @param isLabel if true, value is label, otherwise reference
+     * @returns if the label is already used as boolean
+     */
+    checkLabel(label: string, isLabel: boolean): boolean {
+
+        if(isLabel) {
+            if(this.usedLabels.includes(label)) {
+                return false;
+            } else {
                 this.usedLabels.push(label);
                 return true;
-            } else {
-                this.pendLabels.push(label);
-                return true;
             }
+        } else {
+            this.usedReferences.push(label);
+            return true;
         }
+
     }
 
+    /**
+     * Checks if the inputted register name is a valid register.
+     * @param reg name of register
+     * @returns if the register is a valid register
+     */
     checkReg(reg: string): boolean {
         const registers = [
             "$zero",
@@ -149,15 +182,44 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
         return false;
     }
 
-    checkArgument(ctx: any, input: InputType, expected: InputType): boolean {
-        if(input !== expected) {
-            this.errorHandler.addError(
-                ctx, `Expected argument of type ${input} but got ${expected}.`
-            );
+    /**
+     * Checks if the actual InputType is the same as the expected InputType.
+     * @param ctx ParseTree node
+     * @param input the InputType of the actual input
+     * @param expected the expected InputType
+     * @param expected2 if two types are allowed, this is a additional expected InputType
+     */
+    checkArgument(ctx: any, input: InputType, expected: InputType, expected2?: InputType) {
+        if(expected2 !== undefined) {
+            if(input !== expected && input !== expected2) {
+                this.errorHandler.addError(
+                    ctx, `Expected argument of type ${expected} but got ${input}.`
+                );
+            }
+        } else {
+            if(input !== expected) {
+                this.errorHandler.addError(
+                    ctx, `Expected argument of type ${expected} but got ${input}.`
+                );
+            }
         }
-        return false;
     }
 
+    /**
+     * Checks if the same register is used for both operands of an instruction.
+     * @param ctx ParseTree node
+     * @param reg1 first register ParseTree node
+     * @param reg2 second register ParseTree node
+     */
+    checkIfEqual(ctx: any, reg1: InputContext, reg2: InputContext) {
+        if(reg1.text === reg2.text) {
+            this.errorHandler.addError(
+                ctx, `Cannot use the same register for both arguments of the function.`
+            );
+        }
+    }
+
+    // Required, not used
     defaultResult() {
         return "";
     }
@@ -165,15 +227,17 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
     /**
 	 * Visit a parse tree produced by `facParser.file`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitFile(ctx: FileContext): any {
         super.visitChildren(ctx);
 
-        for(var label of this.pendLabels) {
-            if(!this.usedLabels.includes(label)) {
+        // Checks if each reference has an accompying label. If not,
+        // generates an error.
+        for(var ref of this.usedReferences) {
+            if(!this.usedLabels.includes(ref)) {
                 this.errorHandler.addError(
-                    ctx, "Label \"" + label + "\" unused."
+                    ctx, "Reference \"" + ref + "\" has no label to jump to."
                 );
             }
         }
@@ -191,7 +255,7 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	/**
 	 * Visit a parse tree produced by `facParser.decleration`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitDecleration(ctx: DeclerationContext): any {
         super.visitChildren(ctx);
@@ -248,7 +312,7 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	/**
 	 * Visit a parse tree produced by `facParser.instruction`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitInstruction(ctx: InstructionContext): any {
         this.labelCounter++;
@@ -258,19 +322,32 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	/**
 	 * Visit a parse tree produced by `facParser.lw`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitLw(ctx: LwContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.NUM,
+                InputType.STRING
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.REG
+            );
+        }
     }
 
 	/**
@@ -279,85 +356,134 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitSw(ctx: SwContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.NUM,
+                InputType.STRING
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.REG
+            );
+        }
     }
 
 	/**
 	 * Visit a parse tree produced by `facParser.mult`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitMult(ctx: MultContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.REG
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.REG
+            );
+            this.checkIfEqual(
+                ctx,
+                ctx.input(1),
+                ctx.input(2)
+            );
+        }
     }
 
 	/**
 	 * Visit a parse tree produced by `facParser.add`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitAdd(ctx: AddContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.REG
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.REG
+            );
+            this.checkIfEqual(
+                ctx,
+                ctx.input(1),
+                ctx.input(2)
+            );
+        }
     }
 
 	/**
 	 * Visit a parse tree produced by `facParser.addi`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitAddi(ctx: AddiContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.NUM
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.NUM
+            );
+            this.checkIfEqual(
+                ctx,
+                ctx.input(1),
+                ctx.input(2)
+            );
+        }
     }
 
 	/**
@@ -366,21 +492,28 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitShr(ctx: ShrContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.NUM
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.NUM
+            );
+        }
     }
 
 	/**
@@ -389,21 +522,28 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitShl(ctx: ShlContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.NUM
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.NUM
+            );
+        }
     }
 
 	/**
@@ -412,7 +552,7 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitJump(ctx: JumpContext): any {
-        super.visitChildren(ctx);
+        super.visit(ctx.reference());
     }
 
 	/**
@@ -421,16 +561,24 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitBeq(ctx: BeqContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
+        let args = 2;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+        }
+        super.visit(ctx.reference());
     }
 
 	/**
@@ -439,16 +587,24 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitBneq(ctx: BneqContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
+        let args = 2;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+        }
+        super.visit(ctx.reference());
     }
 
 	/**
@@ -457,21 +613,33 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitOr(ctx: OrContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.REG
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.REG
+            );
+            this.checkIfEqual(
+                ctx,
+                ctx.input(1),
+                ctx.input(2)
+            );
+        }
     }
 
 	/**
@@ -480,21 +648,33 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitAnd(ctx: AndContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.REG
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.REG
+            );
+            this.checkIfEqual(
+                ctx,
+                ctx.input(1),
+                ctx.input(2)
+            );
+        }
     }
 
 	/**
@@ -503,21 +683,33 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitXor(ctx: XorContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(2)),
-            InputType.REG
-        );
+        let args = 3;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(2)),
+                InputType.REG
+            );
+            this.checkIfEqual(
+                ctx,
+                ctx.input(1),
+                ctx.input(2)
+            );
+        }
     }
 
 	/**
@@ -526,16 +718,23 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	 * @return the visitor result
 	 */
 	visitNot(ctx: NotContext): any {
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(0)),
-            InputType.REG
-        );
-        this.checkArgument(
-            ctx,
-            super.visit(ctx.input(1)),
-            InputType.REG
-        );
+        let args = 2;
+        if(ctx.input().length !== args) {
+            this.errorHandler.addError(
+                ctx, `Only applied ${ctx.input().length} arguments, required ${args}.`
+            );
+        } else {
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(0)),
+                InputType.REG
+            );
+            this.checkArgument(
+                ctx,
+                super.visit(ctx.input(1)),
+                InputType.REG
+            );
+        }
     }
 
 	/**
@@ -559,12 +758,12 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	/**
 	 * Visit a parse tree produced by `facParser.label`.
 	 * @param ctx the parse tree
-	 * @return the visitor any
+	 * @return the visitor result
 	 */
 	visitLabel(ctx: LabelContext): any {
         const letters = ctx.LETTERS();
         if(!(letters === null)) {
-            if(!this.checkLabel(letters.text)) {
+            if(!this.checkLabel(letters.text, true)) {
                 this.errorHandler.addError(
                     ctx, "Wrong use of label \"" + letters.text + "\"."
                 );
@@ -583,7 +782,7 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 	visitReference(ctx: ReferenceContext): any {
         const letters = ctx.LETTERS();
         if(!(letters === null)) {
-            if(!this.checkLabel(letters.text)) {
+            if(!this.checkLabel(letters.text, false)) {
                 this.errorHandler.addError(
                     ctx, "Wrong use of label \"" + letters.text + "\"."
                 );
@@ -647,6 +846,9 @@ export class Elaboration extends AbstractParseTreeVisitor<any> implements facVis
 
 }
 
+/**
+ * Types of input for instructions.
+ */
 enum InputType {
     REG,
     STRING,

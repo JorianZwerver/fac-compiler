@@ -1,0 +1,166 @@
+\\ Integer-based fixed-point calculation of e^x using Taylor series
+
+.decl
+    .define $a0, "x"                 \\ Integer value of x for e^x calculation
+
+.instr
+
+#begin:
+
+    lw "x", 65535($zero)        \\ switch input
+    add $t1, $zero, "x"         \\ $t1 = x
+    addi $t2, $zero, 1          \\  accumulator $t2 = 1 (zeroth term)
+
+    \\ First term: x
+    add $t2, $t2, $t1            \\ Accumulate in $t2 (t2 += x)
+
+    \\ Second term: x^2 / 2
+    add $t4, $t1, $zero
+    mult $t3, $t1, $t4           \\ $t3 = x^2
+    shr $t3, $t3, 1              \\ $t3 = (x^2) / 2
+    add $t2, $t2, $t3            
+
+
+    sw $t2, 2($zero) \\ Store intermediate term (x^2/2)
+
+
+\\ third term: x^3 / 6
+    addi $t6, $zero, -6  \\divisor
+    addi $t7, $zero, 0  \\ quotient initialization
+    add $s2, $zero, $t1
+    mult $t8, $s2, $t1  \\ $t8 = x^2
+    mult $t8, $t8, $t1  \\ $t8 = x^3 (dividend) 
+    sw $t8, 10($zero)
+
+#loopA:
+    addi $s1, $zero, 5
+    #divA:
+        beq $s1, $t8, #doneA
+        addi $s1, $s1, -1
+        beq $s1, $zero, #continueA
+        j #divA
+    
+    #continueA:
+    add $t8, $t8, $t6
+ 
+    addi $t7, $t7, 1               \\ Increment the quotient
+    j #loopA                        \\ Repeat the loop
+ 
+#doneA:                     
+    add $t2, $t2, $t7
+
+    \\ check remainer: if remainder > 2, then add 1, otherwise skip adding 
+    addi $s3, $zero, 5
+    addi $s4, $zero, 2
+    #remA:
+        beq $s3, $s4, #skip_remA
+        beq $s1, $s3, #done_remA
+        addi $s3, $s3, -1
+        j #remA
+    #done_remA:
+        addi $t2, $t2, 1
+
+#skip_remA:
+
+
+\\ fourth term: x^4 / 24
+    addi $t6, $zero, -24  \\divisor
+    addi $t7, $zero, 0  \\ quotient initialization
+    add $s2, $zero, $t1
+    mult $t8, $s2, $t1  \\ $t8 = x^2
+    mult $t8, $t8, $t1  \\ $t8 = x^3 
+    mult $t8, $t8, $t1  \\ $t8 = x^4 (dividend)
+
+#loopB:
+    addi $s1, $zero, 23
+    #divB:
+        beq $s1, $t8, #doneB
+        addi $s1, $s1, -1
+        beq $s1, $zero, #continueB
+        j #divB
+    
+    #continueB:
+    add $t8, $t8, $t6
+ 
+    addi $t7, $t7, 1               \\ Increment the quotient
+    j #loopB                        \\ Repeat the loop
+ 
+
+#doneB:                     
+    add $t2, $t2, $t7
+
+
+    \\ check remainer: if remainder > 11, then add 1, otherwise skip adding 
+    addi $s3, $zero, 23
+    addi $s4, $zero, 11
+    #remB:
+        beq $s3, $s4, #skip_remB
+        beq $s1, $s3, #done_remB
+        addi $s3, $s3, -1
+        j #remB
+    #done_remB:
+        addi $t2, $t2, 1
+
+#skip_remB:
+
+
+\\ fifth term: x^5 / 120
+    addi $t6, $zero, -120  \\divisor
+    addi $t7, $zero, 0  \\ quotient initialization
+    add $s2, $zero, $t1
+    mult $t8, $s2, $t1  \\ $t8 = x^2
+    mult $t8, $t8, $t1  \\ $t8 = x^3 
+    mult $t8, $t8, $t1  \\ $t8 = x^4 
+    mult $t8, $t8, $t1  \\ $t8 = x^5 (dividend)   
+
+#loopC:
+    addi $s1, $zero, 119
+    #divC:
+        beq $s1, $t8, #doneC
+        addi $s1, $s1, -1
+        beq $s1, $zero, #continueC
+        j #divC
+    
+    #continueC:
+    add $t8, $t8, $t6
+ 
+    addi $t7, $t7, 1               \\ Increment the quotient
+    j #loopC                        \\ Repeat the loop
+ 
+
+#doneC:                     
+    add $t2, $t2, $t7
+
+
+\\ sixth term: x^6 / 720
+    addi $t6, $zero, -720  \\divisor
+    addi $t7, $zero, 0  \\ quotient
+    add $s2, $zero, $t1
+    mult $t8, $s2, $t1  \\ $t8 = x^2
+    mult $t8, $t8, $t1  \\ $t8 = x^3 
+    mult $t8, $t8, $t1  \\ $t8 = x^4 
+    mult $t8, $t8, $t1  \\ $t8 = x^5 
+    mult $t8, $t8, $t1  \\ $t8 = x^6 (dividend)    
+
+#loopD:
+    addi $s1, $zero, 719
+    #divD:
+        beq $s1, $t8, #doneD
+        addi $s1, $s1, -1
+        beq $s1, $zero, #continueD
+        j #divD
+    
+    #continueD:
+    add $t8, $t8, $t6
+ 
+    addi $t7, $t7, 1               \\ Increment the quotient
+    j #loopD                        \\ Repeat the loop
+ 
+
+#doneD:                     
+    add $t2, $t2, $t7
+
+    sw $t2, 1($zero)
+    sw $t2, 65534($zero) 
+
+    j #begin

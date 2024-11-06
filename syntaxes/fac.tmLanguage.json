@@ -40,7 +40,7 @@
 		"labels": {
 			"name": "entity.name.class",
 			"begin": "#",
-			"end": ":|\n"
+			"end": ":| |\n"
 		},
 		"string": {
 			"name": "string",

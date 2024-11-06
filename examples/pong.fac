@@ -1,0 +1,514 @@
+\\ --------------------------------
+\\ - PONG ASSEMBLY FOR DH PROJECT -
+\\ --------------------------------
+\\ ------ PROJECT GROUP 14 --------
+\\ --------------------------------
+
+\\ Definitions
+.decl
+    .define $s0, "keyboard" \\ Stores address for keyboard
+    .define $s1, "vga_me"   \\ Enable for VGA
+    .define $s2, "vga_c"    \\ Column specifier for VGA
+    .define $s3, "vga_r"    \\ Row specifier for VGA
+    .define $s4, "vga_data" \\ VGA data
+    .define $s5, "rows"
+    .define $s6, "columns"
+    .define $s7, "key"      \\ Stores keyboard key
+    .define $s8, "row_left" \\ Stores location of left paddle
+    .define $s9, "row_right" \\ Stores location of right paddle
+    .define $s10, "increment"
+    .define $s11, "neg_increment"
+
+    .define $a1, "one"
+    .define $a1, "enable"
+
+    .define $zero, "disable"
+    .define $zero, "black"      \\ Sets a full box in VGA screen to black
+
+    \\ Bounds for ball
+    .define 96,     "left_bound"
+    .define 528,    "right_bound"
+    .define 0,      "bottom_bound"
+    .define 464,    "top_bound"
+
+    .define 97,     "size_paddle" \\ Official size is 96, extra 1 is needed for loops
+
+    .define $t0,    "x_loc"     \\ X location of ball
+    .define $t1,    "y_loc"     \\ Y location of ball
+    .define $t2,    "x_speed"   \\ Speed in X direction of ball
+    .define $t3,    "y_speed"   \\ Speed in Y direction of ball
+
+    .define 65535,  "white"     \\ Sets a full box in VGA screen to white
+
+    .define $t4, "ctr_in"       \\ Counter 1 for ball
+    .define $t5, "ctr_out"      \\ Counter 2 for ball
+    .define $t8, "max_in"       \\ Maximal counter 1 value
+    .define $t10, "max_out"     \\ Maximal counter 2 value
+
+    .define $t11, "score"       \\ Keeps track of score
+    .define 65528, "hex"        \\ Location in MMIO for hex displays
+
+    .define $v1, "d1"
+    .define $v0, "d2"
+
+\\ Start of instruction
+.instr
+    \\ Initializes constants
+    addi "keyboard", $zero, 65533   \\ Load keyboard address
+    addi "vga_me", $zero, 65529     \\ Load VGA enable address
+    addi "vga_c", $zero, 65531      \\ Load VGA column address
+    addi "vga_r", $zero, 65532      \\ Load VGA row address
+    addi "vga_data", $zero, 65530   \\ Load VGA data address
+    addi "increment", $zero, 16     \\ Load increment size for paddle
+    addi $a0, $zero, -1
+    mult "neg_increment", "increment", $a0  \\ Invert increment and store it
+    addi "one", $zero, 1
+
+    addi "max_in", $zero, 60000     \\ Set maximal counter time for counter 1
+    addi "max_out", $zero, 15       \\ Set maximal counter time for counter 2
+    addi "ctr_in", $zero, 0
+    addi "ctr_out", $zero, 0
+
+    \\ Initial positons
+    addi "x_speed", $zero, 1        \\ Set speed in x direction
+    addi "y_speed", $zero, 16       \\ Set speed in y direction
+
+    addi $t9, $zero, 41     \\ Space on keyboard
+
+    \\ Check for start of program,
+    \\ untill then, wait. 
+    \\ The VGA display shows meme/wallpaper
+    #check_for_start:
+        lw "key", 0("keyboard")     \\ Load key in keyboard
+        bneq "key", $t9, #check_for_start \\ Check if it is a space
+
+    \\ Restart the game, resets the score
+    #restart_game:
+        addi $t9, $zero, "hex"
+        addi "score", $zero, 0
+        sw "score", 0($t9)
+
+    \\ Start the game (draws the board)
+    #start_game:
+        addi "row_left", $zero, 192     \\ Set left paddle location
+        addi "row_right", $zero, 192    \\ Set right paddle location
+
+        \\ Set background to black
+        addi "columns", $zero, 0
+
+        sw $zero, 0("vga_c")
+        sw $zero, 0("vga_r")
+
+        sw "black", 0("vga_data")
+        sw "enable", 0("vga_me")
+
+        #columns_black:
+
+            sw "columns", 0("vga_c")
+            addi "rows", $zero, 0
+
+            #rows_black:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                addi $a0, $zero, 480
+                bneq "rows", $a0, #rows_black
+
+            addi "columns", "columns", 1
+            addi $a0, $zero, 40
+            bneq "columns", $a0, #columns_black
+        
+        sw "disable", 0("vga_me")
+
+        \\ Draw paddles
+        addi "columns", $zero, 2
+        addi "rows", $zero, 192
+
+        sw "columns", 0("vga_c")
+        sw "rows", 0("vga_r")
+        addi $a1, $zero, "white"
+        sw $a1, 0("vga_data")
+        addi $a1, $zero, 1
+        sw $a1, 0("vga_me")
+
+        #columns_batje:
+
+            sw "columns", 0("vga_c")
+            addi "rows", $zero, 192
+
+            #rows_batje:
+
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                addi $a0, $zero, 288
+                bneq "rows", $a0, #rows_batje
+
+            addi $a0, $zero, 39
+            beq "columns", $a0, #draw_ball_intial
+            addi "columns", $zero, 39
+            j #columns_batje
+
+    \\ Draw the intial position of the ball
+    #draw_ball_intial:
+        sw "disable", 0("vga_me")
+
+        addi "x_loc", $zero, 21     \\ Initial x location of ball
+        addi "y_loc", $zero, 240    \\ Initial y location of ball
+
+        \\ Start drawing
+        sw "x_loc", 0("vga_c")
+        sw "y_loc", 0("vga_r")
+
+        addi $t6, $zero, "white"
+        sw $t6, 0("vga_data")
+        
+        sw "enable", 0("vga_me")
+
+        addi $t6, $zero, 16
+        add $t7, $zero, "y_loc"
+
+        #draw_ball_initial_loop:
+            addi $t7, $t7, 1
+            sw $t7, 0("vga_r")
+            addi $t6, $t6, -1
+            bneq $t6, $zero, #draw_ball_initial_loop
+
+    \\ Start game loop (continues untill the game
+    \\ is reset or a player scores)
+    #ingame_loop:
+        sw "disable", 0("vga_me")
+        \\ Load current key from keyboard
+        lw "key", 0("keyboard")
+        \\ If F0 (= key is pressed) check which key is pressed,
+        \\ otherwise continue to ball update
+        addi $t9, $zero, 240
+        bneq "key", $t9, #continue
+
+        \\ Checks which key was pressed, if:
+        \\ - Spacebar -> reset game
+        \\ - w -> move left paddle up
+        \\ - s -> move left paddle down
+        \\ - s -> move right paddle up
+        \\ - i -> move right paddle down
+        \\ otherwise continue to ball update
+        #check_for_new_key:
+            lw "key", 0("keyboard")
+            beq "key", $t9, #check_for_new_key
+            addi $a0, $zero, 41 \\ Code for 'spacebar'
+            beq "key", $a0, #restart_game
+            addi $a0, $zero, 29 \\ Code for 'w'
+            beq "key", $a0, #w
+            addi $a0, $zero, 27 \\ Code for 's'
+            beq "key", $a0, #s
+            addi $a0, $zero, 67 \\ Code for 'i'
+            beq "key", $a0, #i
+            addi $a0, $zero, 66 \\ Code for 'k'
+            beq "key", $a0, #k
+            j #continue
+
+        \\ Move left paddle up
+        #w:
+            beq "row_left", $zero, #continue
+            add "row_left", "row_left", "neg_increment"
+
+            addi $t9, $zero, 2
+            sw $t9, 0("vga_c")
+
+            addi "rows", "row_left", 0
+            sw "rows", 0("vga_r")
+
+            sw "black", 0("vga_data")
+            sw "enable", 0("vga_me")
+
+            addi $t9, "rows", "size_paddle"
+            add $t9, $t9, "increment"
+            #reset_left_w:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #reset_left_w
+
+            sw "disable", 0("vga_me")
+            addi "rows", "row_left", 0
+            sw "rows", 0("vga_r")
+            addi $t9, $zero, "white"
+            sw $t9, 0("vga_data")
+            sw "enable", 0("vga_me")
+
+            addi $t9, "rows", "size_paddle"
+            #write_left_w:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #write_left_w
+
+            sw "disable", 0("vga_me")
+
+            j #continue
+
+        \\ Move left paddle down
+        #s:
+            addi $a0, $zero, 384
+            beq "row_left", $a0, #continue
+            
+            addi "rows", "row_left", 0
+
+            addi $t9, $zero, 2
+            sw $t9, 0("vga_c")
+
+            sw "rows", 0("vga_r")
+            sw "black", 0("vga_data")
+            sw "enable", 0("vga_me")
+
+            addi $t9, "rows", "size_paddle"
+            #reset_left_s:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #reset_left_s
+
+            sw "disable", 0("vga_me")
+            add "rows", "row_left", "increment"
+            addi $t9, $zero, "white"
+            sw $t9, 0("vga_data")
+
+            addi $t9, "rows", "size_paddle"
+            sw "enable", 0("vga_me")
+
+            #write_left_s:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #write_left_s
+
+            sw "disable", 0("vga_me")
+            add "row_left", "row_left", "increment"
+
+            j #continue
+
+        \\ Move right paddle up
+        #i:
+            beq "row_right", $zero, #continue
+            add "row_right", "row_right", "neg_increment"
+
+            addi $t9, $zero, 39
+            sw $t9, 0("vga_c")
+
+            addi "rows", "row_right", 0
+            sw "rows", 0("vga_r")
+   
+            sw "black", 0("vga_data")
+            sw "enable", 0("vga_me")
+
+            addi $t9, "rows", "size_paddle"
+            add $t9, $t9, "increment"
+            #reset_left_i:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #reset_left_i
+
+            sw "disable", 0("vga_me")
+            addi "rows", "row_right", 0
+            sw "rows", 0("vga_r")
+            addi $t9, $zero, "white"
+            sw $t9, 0("vga_data")
+            sw "enable", 0("vga_me")
+
+            addi $t9, "rows", "size_paddle"
+            #write_left_i:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #write_left_i
+
+            sw "disable", 0("vga_me")
+
+            j #continue
+
+        \\ Move right paddle down
+        #k:
+            addi $a0, $zero, 384
+            beq "row_right", $a0, #continue
+            
+            addi "rows", "row_right", 0
+
+            addi $t9, $zero, 39
+            sw $t9, 0("vga_c")
+
+            sw "rows", 0("vga_r")
+            sw "black", 0("vga_data")
+            sw "enable", 0("vga_me")
+
+            addi $t9, "rows", "size_paddle"
+            #reset_left_k:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #reset_left_k
+
+            sw "disable", 0("vga_me")
+            add "rows", "row_right", "increment"
+            addi $t9, $zero, "white"
+            sw $t9, 0("vga_data")
+
+            addi $t9, "rows", "size_paddle"
+            sw "enable", 0("vga_me")
+
+            #write_left_k:
+                sw "rows", 0("vga_r")
+                addi "rows", "rows", 1
+                bneq "rows", $t9, #write_left_k
+
+            sw "disable", 0("vga_me")
+            add "row_right", "row_right", "increment"
+
+            j #continue
+
+        \\ Continues by updating ball, but since this would update to
+        \\ fast for the human eye, update speed is decreased by two nested
+        \\ counters to a reasonable speed.
+        #continue:
+            \\ Inner loop
+            add "ctr_in", "ctr_in", "one"
+
+            bneq "ctr_in", "max_in", #ingame_loop
+            addi "ctr_in", $zero, 0
+
+            \\ Outer loop
+            add "ctr_out", "ctr_out", "one"
+            bneq "ctr_out", "max_out", #ingame_loop
+
+            addi "ctr_out", $zero, 0
+            \\ If count completed, update the ball
+
+            \\ First remove the ball at its original position
+            #remove_ball:
+                sw "x_loc", 0("vga_c")
+                sw "y_loc", 0("vga_r")
+                sw "black", 0("vga_data") 
+                sw "enable",0("vga_me")
+
+                addi $t6, $zero, 16
+                add $t7, $zero, "y_loc"
+
+                #remove_ball_loop:
+                    addi $t7, $t7, 1
+                    sw $t7, 0("vga_r")
+                    addi $t6, $t6, -1
+                    bneq $t6, $zero, #remove_ball_loop
+            
+            \\ Update the location of the ball (x and y coordinates)
+            #update_ball:
+                add "x_loc", "x_loc", "x_speed"
+                addi $a0, $zero, 2
+                beq "x_loc", $a0, #change_x_left
+                addi $a0, $zero, 39
+                beq "x_loc", $a0, #change_x_right
+                j #y_loc
+
+                \\ Check if ball collides with (left) wall. If paddle is present,
+                \\ change direction, otherwise give other player a point
+                #change_x_left:
+                    \\ d1 = Ball - Batje
+                    addi    "d1", $zero, -1
+                    mult    "d1", "row_left", "d1"
+                    add     "d1", "d1", "y_loc"
+
+                    \\ d2 = (Batje + 80) - Ball
+                    addi    "d2", $zero, -1
+                    mult    "d2", "y_loc", "d2"
+                    addi    $t9, "row_left", 80
+                    add     "d2", "d2", $t9
+
+                    \\ msb_d1 = d1[0]
+                    shr "d1", "d1", 15
+
+                    \\ msb_d2 = d2[0] 
+                    shr "d2", "d2", 15
+
+                    addi $a0, $zero, -1
+                    mult "x_speed", "x_speed", $a0
+
+                    \\ if (!msb_d1 && !msb_d2) collision
+                    beq "d1", "one", #score_left
+                    beq "d2", "one", #score_left
+
+                    add "x_loc", "x_loc", "x_speed"
+                    add "x_loc", "x_loc", "x_speed"
+
+                    j #y_loc
+
+                \\ Check if ball collides with (right) wall. If paddle is present,
+                \\ change direction, otherwise give other player a point
+                #change_x_right:
+                    \\ d1 = Ball - Batje
+                    addi    "d1", $zero, -1
+                    mult    "d1", "row_right", "d1"
+                    add     "d1", "d1", "y_loc"
+
+                    \\ d2 = (Batje + 80) - Ball
+                    addi    "d2", $zero, -1
+                    mult    "d2", "y_loc", "d2"
+                    addi    $t9, "row_right", 80
+                    add     "d2", "d2", $t9
+
+                    \\ msb_d1 = d1[0]
+                    shr "d1", "d1", 15
+
+                    \\ msb_d2 = d2[0] 
+                    shr "d2", "d2", 15
+
+                    addi $a0, $zero, -1
+                    mult "x_speed", "x_speed", $a0
+
+                    \\ if (!msb_d1 && !msb_d2) collision
+                    beq "d1", "one", #score_right
+                    beq "d2", "one", #score_right
+
+                    add "x_loc", "x_loc", "x_speed"
+                    add "x_loc", "x_loc", "x_speed"
+
+                    j #y_loc
+
+                \\ Update Y-location
+                #y_loc:
+                    add "y_loc", "y_loc", "y_speed"
+                    addi $a0, $zero, 0
+                    beq "y_loc", $a0, #change_y
+                    addi $a0, $zero, 464
+                    beq "y_loc", $a0, #change_y
+                    j #update_locations
+
+                \\ If at bottom or top, change direction
+                #change_y:
+                    addi $a0, $zero, -1
+                    mult "y_speed", "y_speed", $a0
+                    add "y_loc", "y_loc", "y_speed"
+                    add "y_loc", "y_loc", "y_speed"
+
+                \\ Update location registers for ball to newly calculated value
+                #update_locations:
+                    sw "x_loc", 0("vga_c")
+                    sw "y_loc", 0("vga_r")
+                    addi $t9, $zero, "white"
+                    sw $t9, 0("vga_data")
+                    sw "enable", 0("vga_me")
+                    add "rows", $zero, "y_loc"
+                    addi $a0, "y_loc", 16
+
+            \\ Draw the ball at its new location
+            #make_ball:
+                addi "rows", "rows", 1
+                sw "rows", 0("vga_r")
+                bneq "rows", $a0, #make_ball
+                sw "disable", 0("vga_me")
+
+            \\ Jump back to beginning of game loop
+            j #ingame_loop
+
+            \\ If left has scored, increase score and redraw the field for another round
+            #score_left:
+                addi "score", "score", 1
+                addi $t9, $zero, "hex"
+                sw "score", 0($t9)
+                j #start_game
+
+            \\ If right has scored, increase score and redraw the field for another round
+            #score_right:
+                addi "score", "score", 100
+                addi $t9, $zero, "hex"
+                sw "score", 0($t9)
+                j #start_game
